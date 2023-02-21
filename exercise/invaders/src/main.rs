@@ -65,17 +65,16 @@ fn game(audio: &mut Audio) {
 
     game_loop(
         audio,
-        Box::new(|curr_frame| {
+        Box::new(move |curr_frame| {
             // just ignore the error, it's OK to have it fail to send some frames (e.g. when the app starts)
             frame_sender.send(curr_frame).unwrap_or(());
         }),
     );
 
-    drop(frame_sender);
     render_handler.join().unwrap();
 }
 
-fn game_loop(audio: &mut Audio, frame_sender: Box<dyn FnMut(Frame) -> ()>) {
+fn game_loop(audio: &mut Audio, frame_sender: Box<dyn Fn(Frame) -> ()>) {
     'game_loop: loop {
         let curr_frame = new_frame();
 
