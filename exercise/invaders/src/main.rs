@@ -119,6 +119,9 @@ fn game_loop(audio: &mut Audio, mut player: Player, mut invaders: Invaders, send
         if invaders.update(delta) {
             audio.play(Sounds::Move.name());
         };
+        if player.detect_hits(&mut invaders) {
+            audio.play(Sounds::Explode.name());
+        }
 
         let drawables: Vec<&dyn Drawable> = vec![&player, &invaders];
         for drawable in drawables {
@@ -129,5 +132,14 @@ fn game_loop(audio: &mut Audio, mut player: Player, mut invaders: Invaders, send
 
         // let's wait a little bit to not generate way too many frames to be handled by a render loop
         thread::sleep(time::Duration::from_millis(10));
+
+        if invaders.all_killed() {
+            audio.play(Sounds::Win.name());
+            break 'game_loop;
+        }
+        if invaders.reached_bottom() {
+            audio.play(Sounds::Lose.name());
+            break 'game_loop;
+        }
     }
 }
