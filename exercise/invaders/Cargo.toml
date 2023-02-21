@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 crossterm = "0.26.0"
 rusty_audio = "1.4.0"
-#rusty_time = "0.12.0"
+rusty_time = "0.12.0"

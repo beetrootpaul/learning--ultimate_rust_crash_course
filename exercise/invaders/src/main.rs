@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::sync::mpsc;
 use std::{io, thread, time};
+use std::time::Instant;
 
 use crossterm::{event, ExecutableCommand};
 use rusty_audio::Audio;
@@ -82,7 +83,11 @@ fn render_loop(receive_frame: Box<dyn Fn() -> Option<Frame>>) {
 }
 
 fn game_loop(audio: &mut Audio, mut player: Player, send_frame: Box<dyn Fn(Frame)>) {
+    let mut instant = Instant::now();
     'game_loop: loop {
+        let delta = instant.elapsed();
+        instant = Instant::now();
+
         let mut curr_frame = new_frame();
 
         while event::poll(time::Duration::default()).expect("should poll for events") {
@@ -90,6 +95,11 @@ fn game_loop(audio: &mut Audio, mut player: Player, send_frame: Box<dyn Fn(Frame
                 match key_event.code {
                     event::KeyCode::Left => player.move_left(),
                     event::KeyCode::Right => player.move_right(),
+                    event::KeyCode::Char(' ') | event::KeyCode::Enter | event::KeyCode::Char('z') => {
+                        if player.shoot() {
+                            audio.play("pew");
+                        }
+                    },
                     event::KeyCode::Esc | event::KeyCode::Char('q') => {
                         audio.play("lose");
                         break 'game_loop;
@@ -98,6 +108,8 @@ fn game_loop(audio: &mut Audio, mut player: Player, send_frame: Box<dyn Fn(Frame
                 };
             }
         }
+
+        player.update(delta);
 
         player.draw(&mut curr_frame);
 
