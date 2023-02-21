@@ -9,6 +9,7 @@ use rusty_audio::Audio;
 use invaders::assets::Sounds;
 use invaders::frame::{Drawable, Frame, new_frame};
 use invaders::helpers::ResultAnyErr;
+use invaders::invader::Invaders;
 use invaders::player::Player;
 use invaders::render::render;
 
@@ -60,10 +61,12 @@ fn game(audio: &mut Audio) {
     audio.play(Sounds::Startup.name());
 
     let player = Player::new();
+    let invaders = Invaders::new();
 
     game_loop(
         audio,
         player,
+        invaders,
         Box::new(move |curr_frame| {
             // just ignore the error, it's OK to have it fail to send some frames (e.g. when the app starts)
             frame_sender.send(curr_frame).unwrap_or(());
@@ -83,7 +86,7 @@ fn render_loop(receive_frame: Box<dyn Fn() -> Option<Frame>>) {
     }
 }
 
-fn game_loop(audio: &mut Audio, mut player: Player, send_frame: Box<dyn Fn(Frame)>) {
+fn game_loop(audio: &mut Audio, mut player: Player, mut invaders: Invaders, send_frame: Box<dyn Fn(Frame)>) {
     let mut instant = Instant::now();
     'game_loop: loop {
         let delta = instant.elapsed();
@@ -113,8 +116,14 @@ fn game_loop(audio: &mut Audio, mut player: Player, send_frame: Box<dyn Fn(Frame
         }
 
         player.update(delta);
+        if invaders.update(delta) {
+            audio.play(Sounds::Move.name());
+        };
 
-        player.draw(&mut curr_frame);
+        let drawables: Vec<&dyn Drawable> = vec![&player, &invaders];
+        for drawable in drawables {
+            drawable.draw(&mut curr_frame);
+        }
 
         send_frame(curr_frame);
 
