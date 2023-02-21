@@ -1,12 +1,13 @@
+use std::{io, thread, time};
 use std::error::Error;
 use std::sync::mpsc;
-use std::{io, thread, time};
 use std::time::Instant;
 
 use crossterm::{event, ExecutableCommand};
 use rusty_audio::Audio;
 
-use invaders::frame::{new_frame, Frame, Drawable};
+use invaders::assets::Sounds;
+use invaders::frame::{Drawable, Frame, new_frame};
 use invaders::helpers::ResultAnyErr;
 use invaders::player::Player;
 use invaders::render::render;
@@ -22,12 +23,12 @@ fn main() {
 fn setup() -> Result<Audio, Box<dyn Error>> {
     let mut audio = Audio::new();
 
-    audio.add("explode", "assets/sounds/explode.wav");
-    audio.add("lose", "assets/sounds/lose.wav");
-    audio.add("move", "assets/sounds/move.wav");
-    audio.add("pew", "assets/sounds/pew.wav");
-    audio.add("startup", "assets/sounds/startup.wav");
-    audio.add("win", "assets/sounds/win.wav");
+    audio.add(Sounds::Explode.name(), Sounds::Explode.path());
+    audio.add(Sounds::Lose.name(), Sounds::Lose.path());
+    audio.add(Sounds::Move.name(), Sounds::Move.path());
+    audio.add(Sounds::Pew.name(), Sounds::Pew.path());
+    audio.add(Sounds::Startup.name(), Sounds::Startup.path());
+    audio.add(Sounds::Win.name(), Sounds::Win.path());
 
     let mut stdout = io::stdout();
     crossterm::terminal::enable_raw_mode()?;
@@ -56,7 +57,7 @@ fn game(audio: &mut Audio) {
         render_loop(Box::new(move || frame_receiver.recv().ok()));
     });
 
-    audio.play("startup");
+    audio.play(Sounds::Startup.name());
 
     let player = Player::new();
 
@@ -95,13 +96,15 @@ fn game_loop(audio: &mut Audio, mut player: Player, send_frame: Box<dyn Fn(Frame
                 match key_event.code {
                     event::KeyCode::Left => player.move_left(),
                     event::KeyCode::Right => player.move_right(),
-                    event::KeyCode::Char(' ') | event::KeyCode::Enter | event::KeyCode::Char('z') => {
+                    event::KeyCode::Char(' ')
+                    | event::KeyCode::Enter
+                    | event::KeyCode::Char('z') => {
                         if player.shoot() {
-                            audio.play("pew");
+                            audio.play(Sounds::Pew.name());
                         }
-                    },
+                    }
                     event::KeyCode::Esc | event::KeyCode::Char('q') => {
-                        audio.play("lose");
+                        audio.play(Sounds::Lose.name());
                         break 'game_loop;
                     }
                     _ => {}
