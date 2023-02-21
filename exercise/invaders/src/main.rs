@@ -8,9 +8,7 @@ use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use rusty_audio::Audio;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut audio = Audio::new();
-    let mut stdout = io::stdout();
-    setup(&mut audio, &mut stdout).expect("should setup");
+    let (mut audio, stdout) = setup().expect("should setup");
 
     audio.play("startup");
 
@@ -18,8 +16,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-// fn setup(mut audio: &Audio, mut stdout: &Stdout) -> Result<(), Box<dyn Error>> {
-fn setup(audio: &mut Audio, stdout: &mut Stdout) -> Result<(), Box<dyn Error>> {
+fn setup() -> Result<(Audio, Stdout), Box<dyn Error>> {
+    let mut audio = Audio::new();
+    let mut stdout = io::stdout();
+
     audio.add("explode", "assets/sounds/explode.wav");
     audio.add("lose", "assets/sounds/lose.wav");
     audio.add("move", "assets/sounds/move.wav");
@@ -31,12 +31,11 @@ fn setup(audio: &mut Audio, stdout: &mut Stdout) -> Result<(), Box<dyn Error>> {
     stdout.execute(EnterAlternateScreen)?;
     stdout.execute(Hide)?;
 
-    Ok(())
+    Ok((audio, stdout))
 }
 
 // fn cleanup(mut audio: Audio, mut stdout: Stdout) -> Result<(), Box<dyn Error>>  {
-fn clean_up(audio: Audio, mut stdout: Stdout) -> Result<(), Box<dyn Error>>  {
-
+fn clean_up(audio: Audio, mut stdout: Stdout) -> Result<(), Box<dyn Error>> {
     audio.wait();
 
     stdout.execute(Show)?;
