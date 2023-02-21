@@ -47,7 +47,7 @@ fn clean_up(audio: Audio) -> ResultAnyErr<()> {
 }
 
 fn game(audio: &mut Audio) {
-    let (mut frame_sender, frame_receiver): (mpsc::Sender<Frame>, mpsc::Receiver<Frame>) =
+    let (frame_sender, frame_receiver): (mpsc::Sender<Frame>, mpsc::Receiver<Frame>) =
         mpsc::channel();
 
     // TODO: extract to "render_loop" function
@@ -63,14 +63,19 @@ fn game(audio: &mut Audio) {
 
     audio.play("startup");
 
-    game_loop(audio, &mut frame_sender);
+    game_loop(
+        audio,
+        Box::new(|curr_frame| {
+            // just ignore the error, it's OK to have it fail to send some frames (e.g. when the app starts)
+            frame_sender.send(curr_frame).unwrap_or(());
+        }),
+    );
 
     drop(frame_sender);
     render_handler.join().unwrap();
 }
 
-// TODO: make game_loop unaware of mpsc::Sender
-fn game_loop(audio: &mut Audio, frame_sender: &mut mpsc::Sender<Frame>) {
+fn game_loop(audio: &mut Audio, frame_sender: Box<dyn FnMut(Frame) -> ()>) {
     'game_loop: loop {
         let curr_frame = new_frame();
 
@@ -86,8 +91,7 @@ fn game_loop(audio: &mut Audio, frame_sender: &mut mpsc::Sender<Frame>) {
             }
         }
 
-        // just ignore the error, it's OK to have it fail to send some frames (e.g. when the app starts)
-        frame_sender.send(curr_frame).unwrap_or(());
+        frame_sender(curr_frame);
 
         // let's wait a little bit to not generate way too many frames to be handled by a render loop
         thread::sleep(time::Duration::from_millis(10));
