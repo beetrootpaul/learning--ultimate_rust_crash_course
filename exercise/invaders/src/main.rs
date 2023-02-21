@@ -2,56 +2,21 @@ use std::{io, thread, time};
 use std::error::Error;
 use std::sync::mpsc;
 
-use crossterm::ExecutableCommand;
+use crossterm::{event, ExecutableCommand};
 
-use invaders::{frame, render};
+use invaders::frame::{Frame, new_frame};
+use invaders::helpers::ResultAnyErr;
+use invaders::render::render;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let (frame_sender, frame_receiver, mut audio) = setup().expect("should setup");
+fn main() -> () {
+    let mut audio = setup().expect("should setup");
 
-    audio.play("startup");
+    game(&mut audio);
 
-    let render_handler = thread::spawn(move || {
-        let mut last_frame = frame::new_frame();
-        let mut stdout = io::stdout();
-        render::render(&mut stdout, &last_frame, &last_frame, true).expect("should render");
-        loop {
-            let curr_frame = match frame_receiver.recv() {
-                Ok(frame) => frame,
-                Err(_) => break,
-            };
-            render::render(&mut stdout, &last_frame, &curr_frame, false).expect("should render");
-            last_frame = curr_frame;
-        }
-    });
-
-    'game_loop: loop {
-        let curr_frame = frame::new_frame();
-        while crossterm::event::poll(time::Duration::default())? {
-            if let crossterm::event::Event::Key(key_event) = crossterm::event::read()? {
-                match key_event.code {
-                    crossterm::event::KeyCode::Esc | crossterm::event::KeyCode::Char('q') => {
-                        audio.play("lose");
-                        break 'game_loop;
-                    }
-                    _ => {}
-                };
-            }
-        }
-
-        frame_sender.send(curr_frame)?;
-        // TODO: tet other millis
-        thread::sleep(time::Duration::from_millis(1));
-    }
-
-    drop(frame_sender);
-    clean_up(audio, render_handler).expect("should clean up");
-    Ok(())
+    clean_up(audio).expect("should clean up");
 }
 
-fn setup() -> Result<(mpsc::Sender<frame::Frame>, mpsc::Receiver<frame::Frame>, rusty_audio::Audio), Box<dyn Error>> {
-    let (frame_sender, frame_receiver) = mpsc::channel();
-
+fn setup() -> Result<rusty_audio::Audio, Box<dyn Error>> {
     let mut audio = rusty_audio::Audio::new();
 
     audio.add("explode", "assets/sounds/explode.wav");
@@ -66,13 +31,11 @@ fn setup() -> Result<(mpsc::Sender<frame::Frame>, mpsc::Receiver<frame::Frame>, 
     stdout.execute(crossterm::terminal::EnterAlternateScreen)?;
     stdout.execute(crossterm::cursor::Hide)?;
 
-    Ok((frame_sender, frame_receiver, audio))
+    Ok(audio)
 }
 
-fn clean_up(audio: rusty_audio::Audio, render_handler: thread::JoinHandle<()>) -> Result<(), Box<dyn Error>> {
+fn clean_up(audio: rusty_audio::Audio) -> ResultAnyErr<()> {
     audio.wait();
-
-    render_handler.join().unwrap();
 
     let mut stdout = io::stdout();
     stdout.execute(crossterm::cursor::Show)?;
@@ -80,4 +43,51 @@ fn clean_up(audio: rusty_audio::Audio, render_handler: thread::JoinHandle<()>) -
     crossterm::terminal::disable_raw_mode()?;
 
     Ok(())
+}
+
+fn game(audio: &mut rusty_audio::Audio) {
+    let (frame_sender, frame_receiver): (mpsc::Sender<Frame>, mpsc::Receiver<Frame>) = mpsc::channel();
+
+    // TODO: extract to "render_loop" function
+    let render_handler = thread::spawn(move || {
+        let mut stdout = io::stdout();
+        let mut last_frame = new_frame();
+        render(&mut stdout, &last_frame, &last_frame, true).expect("should render");
+        loop {
+            let curr_frame = match frame_receiver.recv() {
+                Ok(frame) => frame,
+                Err(_) => break,
+            };
+            render(&mut stdout, &last_frame, &curr_frame, false).expect("should render");
+            last_frame = curr_frame;
+        }
+    });
+
+    audio.play("startup");
+
+    // TODO: extract to "game_loop" function
+    'game_loop: loop {
+        let curr_frame = new_frame();
+
+        while event::poll(time::Duration::default()).expect("should poll for events") {
+            if let event::Event::Key(key_event) = event::read().expect("should read events") {
+                match key_event.code {
+                    event::KeyCode::Esc | event::KeyCode::Char('q') => {
+                        audio.play("lose");
+                        break 'game_loop;
+                    }
+                    _ => {}
+                };
+            }
+        }
+
+        // just ignore the error, it's OK to have it fail to send some frames (e.g. when the app starts)
+        frame_sender.send(curr_frame).unwrap_or(());
+
+        // let's wait a little bit to not generate way too many frames to be handled by a render loop
+        thread::sleep(time::Duration::from_millis(10));
+    }
+
+    drop(frame_sender);
+    render_handler.join().unwrap();
 }
