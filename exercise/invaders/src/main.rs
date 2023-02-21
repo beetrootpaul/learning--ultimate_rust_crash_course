@@ -1,14 +1,15 @@
-use std::{io, thread, time};
 use std::error::Error;
 use std::sync::mpsc;
+use std::{io, thread, time};
 
 use crossterm::{event, ExecutableCommand};
+use rusty_audio::Audio;
 
-use invaders::frame::{Frame, new_frame};
+use invaders::frame::{new_frame, Frame};
 use invaders::helpers::ResultAnyErr;
 use invaders::render::render;
 
-fn main() -> () {
+fn main() {
     let mut audio = setup().expect("should setup");
 
     game(&mut audio);
@@ -16,8 +17,8 @@ fn main() -> () {
     clean_up(audio).expect("should clean up");
 }
 
-fn setup() -> Result<rusty_audio::Audio, Box<dyn Error>> {
-    let mut audio = rusty_audio::Audio::new();
+fn setup() -> Result<Audio, Box<dyn Error>> {
+    let mut audio = Audio::new();
 
     audio.add("explode", "assets/sounds/explode.wav");
     audio.add("lose", "assets/sounds/lose.wav");
@@ -34,7 +35,7 @@ fn setup() -> Result<rusty_audio::Audio, Box<dyn Error>> {
     Ok(audio)
 }
 
-fn clean_up(audio: rusty_audio::Audio) -> ResultAnyErr<()> {
+fn clean_up(audio: Audio) -> ResultAnyErr<()> {
     audio.wait();
 
     let mut stdout = io::stdout();
@@ -45,19 +46,16 @@ fn clean_up(audio: rusty_audio::Audio) -> ResultAnyErr<()> {
     Ok(())
 }
 
-fn game(audio: &mut rusty_audio::Audio) {
-    let (frame_sender, frame_receiver): (mpsc::Sender<Frame>, mpsc::Receiver<Frame>) = mpsc::channel();
+fn game(audio: &mut Audio) {
+    let (mut frame_sender, frame_receiver): (mpsc::Sender<Frame>, mpsc::Receiver<Frame>) =
+        mpsc::channel();
 
     // TODO: extract to "render_loop" function
     let render_handler = thread::spawn(move || {
         let mut stdout = io::stdout();
         let mut last_frame = new_frame();
         render(&mut stdout, &last_frame, &last_frame, true).expect("should render");
-        loop {
-            let curr_frame = match frame_receiver.recv() {
-                Ok(frame) => frame,
-                Err(_) => break,
-            };
+        while let Ok(curr_frame) = frame_receiver.recv() {
             render(&mut stdout, &last_frame, &curr_frame, false).expect("should render");
             last_frame = curr_frame;
         }
@@ -65,7 +63,14 @@ fn game(audio: &mut rusty_audio::Audio) {
 
     audio.play("startup");
 
-    // TODO: extract to "game_loop" function
+    game_loop(audio, &mut frame_sender);
+
+    drop(frame_sender);
+    render_handler.join().unwrap();
+}
+
+// TODO: make game_loop unaware of mpsc::Sender
+fn game_loop(audio: &mut Audio, frame_sender: &mut mpsc::Sender<Frame>) {
     'game_loop: loop {
         let curr_frame = new_frame();
 
@@ -87,7 +92,4 @@ fn game(audio: &mut rusty_audio::Audio) {
         // let's wait a little bit to not generate way too many frames to be handled by a render loop
         thread::sleep(time::Duration::from_millis(10));
     }
-
-    drop(frame_sender);
-    render_handler.join().unwrap();
 }

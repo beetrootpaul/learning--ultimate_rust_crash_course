@@ -1,13 +1,18 @@
 use std::io::{Stdout, Write};
 
-use crossterm::QueueableCommand;
 use crossterm::style::{Color, SetBackgroundColor};
 use crossterm::terminal::{Clear, ClearType};
+use crossterm::QueueableCommand;
 
 use crate::frame::Frame;
 use crate::helpers::ResultAnyErr;
 
-pub fn render(stdout: &mut Stdout, last_frame: &Frame, curr_frame: &Frame, force: bool) -> ResultAnyErr<()> {
+pub fn render(
+    stdout: &mut Stdout,
+    last_frame: &Frame,
+    curr_frame: &Frame,
+    force: bool,
+) -> ResultAnyErr<()> {
     if force {
         stdout.queue(SetBackgroundColor(Color::Blue))?;
         stdout.queue(Clear(ClearType::All))?;
@@ -23,7 +28,7 @@ pub fn render(stdout: &mut Stdout, last_frame: &Frame, curr_frame: &Frame, force
             }
         }
     }
-    
+
     stdout.flush()?;
 
     Ok(())

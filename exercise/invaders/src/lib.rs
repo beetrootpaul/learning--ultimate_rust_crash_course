@@ -1,5 +1,5 @@
-pub mod helpers;
 pub mod frame;
+pub mod helpers;
 pub mod render;
 
 pub const NUM_ROWS: usize = 20;
